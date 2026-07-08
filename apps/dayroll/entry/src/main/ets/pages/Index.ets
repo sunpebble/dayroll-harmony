@@ -40,7 +40,6 @@ PersistentStorage.persistProp('dayroll.exportFormat.v1', 'Plain Text')
 PersistentStorage.persistProp('dayroll.reminderEnabled.v1', false)
 PersistentStorage.persistProp('dayroll.reminderHour.v1', 21)
 PersistentStorage.persistProp('dayroll.reminderMinute.v1', 0)
-PersistentStorage.persistProp('dayroll.proUnlocked.v1', true)
 
 @Entry
 @ComponentV2
@@ -63,14 +62,11 @@ struct Index {
   @Local private reminderEnabled: boolean = false
   @Local private reminderHour: number = 21
   @Local private reminderMinute: number = 0
-  @Local private proUnlocked: boolean = true
   @Local private draftLine: string = ''
   @Local private editingDate: string = ''
   @Local private confirmingDelete: boolean = false
   @Local private composerOpen: boolean = false
   @Local private selectedMonth: string = ''
-  @Local private paywallOpen: boolean = false
-  @Local private paywallIntent: string = ''
   @Local private entries: RollEntry[] = []
 
   aboutToAppear(): void {
@@ -82,7 +78,6 @@ struct Index {
     this.reminderEnabled = AppStorage.get<boolean>('dayroll.reminderEnabled.v1') ?? false
     this.reminderHour = AppStorage.get<number>('dayroll.reminderHour.v1') ?? 21
     this.reminderMinute = AppStorage.get<number>('dayroll.reminderMinute.v1') ?? 0
-    this.proUnlocked = AppStorage.get<boolean>('dayroll.proUnlocked.v1') ?? true
 
     this.loadEntries()
     const context = this.getUIContext().getHostContext()
@@ -401,9 +396,6 @@ struct Index {
   }
 
   private memories(): RollEntry[] {
-    if (!this.proUnlocked) {
-      return []
-    }
     const active = this.dateFromKey(this.activeDate())
     return this.entries.filter((entry: RollEntry) => {
       if (entry.date === this.activeDate()) {
@@ -563,45 +555,12 @@ struct Index {
     }
   }
 
-  private unlockPro(): void {
-    this.proUnlocked = true
-    AppStorage.setOrCreate('dayroll.proUnlocked.v1', this.proUnlocked)
-    this.paywallOpen = false
-    if (this.paywallIntent === 'Stats') {
-      this.statsOpen = true
-      AppStorage.setOrCreate('dayroll.statsOpen.v1', this.statsOpen)
-    } else if (this.paywallIntent === 'Export') {
-      this.exportOpen = true
-      AppStorage.setOrCreate('dayroll.exportOpen.v1', this.exportOpen)
-    }
-    this.paywallIntent = ''
-    this.showToast($r('app.string.dayroll_toast_pro_unlocked'))
-  }
-
-  private showPaywall(): void {
-    this.paywallOpen = true
-  }
-
   private toggleStats(): void {
-    if (!this.proUnlocked) {
-      this.statsOpen = false
-      AppStorage.setOrCreate('dayroll.statsOpen.v1', this.statsOpen)
-      this.paywallIntent = 'Stats'
-      this.showPaywall()
-      return
-    }
     this.statsOpen = !this.statsOpen
     AppStorage.setOrCreate('dayroll.statsOpen.v1', this.statsOpen)
   }
 
   private toggleExport(): void {
-    if (!this.proUnlocked) {
-      this.exportOpen = false
-      AppStorage.setOrCreate('dayroll.exportOpen.v1', this.exportOpen)
-      this.paywallIntent = 'Export'
-      this.showPaywall()
-      return
-    }
     this.exportOpen = !this.exportOpen
     AppStorage.setOrCreate('dayroll.exportOpen.v1', this.exportOpen)
   }
@@ -732,9 +691,9 @@ struct Index {
       return this.reminderOpen
     }
     if (label === '📊') {
-      return this.statsOpen || (this.paywallOpen && this.paywallIntent === 'Stats')
+      return this.statsOpen
     }
-    return this.exportOpen || (this.paywallOpen && this.paywallIntent === 'Export')
+    return this.exportOpen
   }
 
   @Builder
@@ -975,7 +934,7 @@ struct Index {
 
   @Builder
   private exportPreview() {
-    if (this.exportOpen && this.proUnlocked) {
+    if (this.exportOpen) {
       Column({ space: SunSpacing.sm }) {
         Text($r('app.string.dayroll_export_preview_title'))
           .fontSize(10)
@@ -1030,7 +989,7 @@ struct Index {
 
   @Builder
   private statsPreview() {
-    if (this.statsOpen && this.proUnlocked) {
+    if (this.statsOpen) {
       Column({ space: SunSpacing.md }) {
         Text($r('app.string.dayroll_stats_title'))
           .fontSize(14)
@@ -1177,86 +1136,6 @@ struct Index {
   }
 
   @Builder
-  private paywallFeature(icon: string, text: ResourceStr) {
-    Row({ space: SunSpacing.md }) {
-      Text(icon)
-        .fontSize(18)
-        .width(24)
-        .textAlign(TextAlign.Center)
-      Text(text)
-        .fontSize(14)
-        .fontColor(SunColor.ink)
-        .layoutWeight(1)
-    }
-    .width('100%')
-    .alignItems(VerticalAlign.Center)
-  }
-
-  @Builder
-  private paywallPanel() {
-    if (this.paywallOpen && !this.proUnlocked) {
-      Column({ space: SunSpacing.lg }) {
-        Text('DAYROLL PRO')
-          .fontSize(20)
-          .fontWeight(FontWeight.Bold)
-          .letterSpacing(4)
-          .fontColor(SunColor.ink)
-          .width('100%')
-          .textAlign(TextAlign.Center)
-
-        this.perforation()
-
-        Column({ space: 14 }) {
-          this.paywallFeature('↗', $r('app.string.dayroll_paywall_feature_export'))
-          this.paywallFeature('▥', $r('app.string.dayroll_paywall_feature_stats'))
-          this.paywallFeature('↺', $r('app.string.dayroll_paywall_feature_memories'))
-          this.paywallFeature('♥', $r('app.string.dayroll_paywall_feature_indie'))
-        }
-        .width('100%')
-        .alignItems(HorizontalAlign.Start)
-
-        this.perforation()
-
-        Text($r('app.string.dayroll_paywall_pitch'))
-          .fontSize(11)
-          .fontWeight(FontWeight.Bold)
-          .fontColor(SunColor.pebble)
-          .lineHeight(17)
-          .width('100%')
-          .textAlign(TextAlign.Center)
-
-        SunButton({
-          label: $r('app.string.dayroll_paywall_unlock'),
-          action: () => this.unlockPro()
-        })
-
-        Button($r('app.string.dayroll_restore_purchase'))
-          .height(36)
-          .backgroundColor(Color.Transparent)
-          .fontSize(12)
-          .fontColor(SunColor.pebble)
-          .onClick(() => this.unlockPro())
-
-        Button($r('app.string.dayroll_paywall_close'))
-          .height(36)
-          .backgroundColor(Color.Transparent)
-          .fontSize(12)
-          .fontColor(SunColor.pebble)
-          .onClick(() => {
-            this.paywallOpen = false
-            this.paywallIntent = ''
-          })
-      }
-      .width('100%')
-      .alignItems(HorizontalAlign.Center)
-      .padding(SunSpacing.lg)
-      .backgroundColor('#FFFDF7')
-      .border({ width: 1, color: '#C8BDAA' })
-      .onAppear(() => this.tapeScroller.scrollEdge(Edge.Bottom))
-    }
-  }
-
-  @Builder
   private reminderPanel() {
     if (this.reminderOpen) {
       Column({ space: SunSpacing.md }) {
@@ -1353,7 +1232,6 @@ struct Index {
                   this.rollList()
 
                   this.reminderPanel()
-                  this.paywallPanel()
                   this.statsPreview()
                   this.exportPreview()
                 }
