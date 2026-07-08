@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.1](https://github.com/sunpebble/dayroll-harmony/compare/v0.2.0...v0.2.1) (2026-07-08)
+
+
+### Bug Fixes
+
+* layered icon, inset timing, instant mood-edit refresh & working reminders ([01f87cb](https://github.com/sunpebble/dayroll-harmony/commit/01f87cbf9945298a81350928ff52a616f5ee0023))
+
 ## [0.2.0](https://github.com/sunpebble/dayroll-harmony/compare/v0.1.2...v0.2.0) (2026-07-08)
 
 
