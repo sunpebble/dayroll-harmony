@@ -14,6 +14,7 @@ import { AbilityConstant, common, Configuration, EnvironmentCallback } from '@ki
 import { reminderAgentManager } from '@kit.BackgroundTasksKit'
 import { notificationManager } from '@kit.NotificationKit'
 import { systemShare } from '@kit.ShareKit'
+import { CalendarView } from '../components/CalendarView'
 
 interface RollEntry {
   date: string
@@ -64,6 +65,7 @@ struct Index {
   @Local private selectedMonth: string = ''
   @Local private entries: RollEntry[] = []
   @Local private activeTab: number = 0
+  @Local private calMonth: string = `${new Date().getFullYear()}-${this.pad(new Date().getMonth() + 1)}`
 
   aboutToAppear(): void {
     this.mood = AppStorage.get<string>('dayroll.mood.v1') ?? '😐'
@@ -1121,7 +1123,6 @@ struct Index {
       .padding(SunSpacing.md)
       .backgroundColor('#FFFDF7')
       .border({ width: 1, color: '#C8BDAA' })
-      .onAppear(() => this.tapeScroller.scrollEdge(Edge.Bottom))
   }
 
   @Builder
@@ -1193,11 +1194,27 @@ struct Index {
 
   @Builder
   private calendarTab() {
-    // Task 3 填充；先占位
-    Column() {
-      Text($r('app.string.dayroll_tab_calendar')).fontSize(14).fontColor(SunColor.pebble)
+    Scroll() {
+      CalendarView({
+        entries: this.entries,
+        calMonth: this.calMonth,
+        onMonthChange: (month: string) => { this.calMonth = month },
+        onPickDay: (dateKey: string) => { this.pickDayFromCalendar(dateKey) }
+      })
     }
-    .width('100%').height('100%').justifyContent(FlexAlign.Center).backgroundColor('#FFFDF7')
+    .layoutWeight(1).height('100%').scrollBar(BarState.Off).edgeEffect(EdgeEffect.Spring)
+    .backgroundColor('#FFFDF7')
+  }
+
+  private pickDayFromCalendar(dateKey: string): void {
+    const existing = this.entries.find((e: RollEntry) => e.date === dateKey)
+    this.editingDate = dateKey
+    this.mood = existing ? (this.validMood(existing.mood) || '😐') : '😐'
+    AppStorage.setOrCreate('dayroll.mood.v1', this.mood)
+    this.draftLine = existing ? existing.line : ''
+    this.confirmingDelete = false
+    this.composerOpen = true
+    this.activeTab = 0
   }
 
   @Builder
