@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.2](https://github.com/sunpebble/dayroll-harmony/compare/v0.2.1...v0.2.2) (2026-07-10)
+
+
+### Bug Fixes
+
+* address AppGallery review — contrast, reminder, TimePicker, stats ([70b0b38](https://github.com/sunpebble/dayroll-harmony/commit/70b0b386faf8ad5c899d39fa8f63cde657d411ae))
+
 ## [0.2.1](https://github.com/sunpebble/dayroll-harmony/compare/v0.2.0...v0.2.1) (2026-07-08)
 
 
