@@ -10,7 +10,7 @@ import {
 import { uniformTypeDescriptor as utd } from '@kit.ArkData'
 import { intl } from '@kit.LocalizationKit'
 import { pasteboard } from '@kit.BasicServicesKit'
-import { AbilityConstant, common, Configuration, EnvironmentCallback } from '@kit.AbilityKit'
+import { AbilityConstant, common, Configuration, EnvironmentCallback, Want } from '@kit.AbilityKit'
 import { reminderAgentManager } from '@kit.BackgroundTasksKit'
 import { notificationManager } from '@kit.NotificationKit'
 import { systemShare } from '@kit.ShareKit'
@@ -66,6 +66,9 @@ struct Index {
   @Local private entries: RollEntry[] = []
   @Local private activeTab: number = 0
   @Local private calMonth: string = `${new Date().getFullYear()}-${this.pad(new Date().getMonth() + 1)}`
+  // Stable TimePicker selected date — do not recreate on every onChange (causes 08:48 vs 08:47 desync).
+  @Local private reminderPickerDate: Date = new Date(2024, 0, 1, 21, 0, 0)
+  private reminderPendingEnable: boolean = false
 
   aboutToAppear(): void {
     this.mood = AppStorage.get<string>('dayroll.mood.v1') ?? '😐'
@@ -74,6 +77,7 @@ struct Index {
     this.reminderEnabled = AppStorage.get<boolean>('dayroll.reminderEnabled.v1') ?? false
     this.reminderHour = AppStorage.get<number>('dayroll.reminderHour.v1') ?? 21
     this.reminderMinute = AppStorage.get<number>('dayroll.reminderMinute.v1') ?? 0
+    this.reminderPickerDate = new Date(2024, 0, 1, this.reminderHour, this.reminderMinute, 0)
 
     this.loadEntries()
     const context = this.getUIContext().getHostContext()
@@ -86,6 +90,13 @@ struct Index {
         }
       }
       this.envCallbackId = context.getApplicationContext().on('environment', envCallback)
+    }
+  }
+
+  onPageShow(): void {
+    if (this.reminderPendingEnable) {
+      this.reminderPendingEnable = false
+      this.scheduleDailyReminder()
     }
   }
 
@@ -133,6 +144,18 @@ struct Index {
   private saveEntries(): void {
     this.entriesJson = JSON.stringify(this.entries)
     AppStorage.setOrCreate('dayroll.entries.v1', this.entriesJson)
+  }
+
+  private tapeCount(): number {
+    return this.entries.length
+  }
+
+  private tapeStreak(): number {
+    return this.streak()
+  }
+
+  private tapeBest(): number {
+    return this.longestStreak()
   }
 
   private saveToday(): void {
@@ -461,7 +484,10 @@ struct Index {
       if (!await this.requestNotificationAccess()) {
         this.reminderEnabled = false
         AppStorage.setOrCreate('dayroll.reminderEnabled.v1', this.reminderEnabled)
-        this.showToast($r('app.string.dayroll_toast_enable_notifications'))
+        if (!quiet) {
+          this.showToast($r('app.string.dayroll_toast_enable_notifications'))
+          this.openNotificationSettings()
+        }
         return
       }
       await reminderAgentManager.cancelAllReminders()
@@ -485,8 +511,32 @@ struct Index {
     } catch (_error) {
       this.reminderEnabled = false
       AppStorage.setOrCreate('dayroll.reminderEnabled.v1', this.reminderEnabled)
-      this.showToast($r('app.string.dayroll_toast_enable_notifications'))
+      if (!quiet) {
+        this.showToast($r('app.string.dayroll_toast_enable_notifications'))
+        this.openNotificationSettings()
+      }
     }
+  }
+
+  private openNotificationSettings(): void {
+    const context = this.getUIContext().getHostContext() as common.UIAbilityContext | undefined
+    if (!context) {
+      return
+    }
+    this.reminderPendingEnable = true
+    const want: Want = {
+      bundleName: 'com.huawei.hmos.settings',
+      abilityName: 'com.huawei.hmos.settings.MainAbility',
+      uri: 'systemui_notification_settings',
+      parameters: {
+        pushParams: {
+          bundleName: context.abilityInfo.bundleName
+        }
+      }
+    }
+    context.startAbility(want).catch(() => {
+      this.reminderPendingEnable = false
+    })
   }
 
   private disableReminder(): void {
@@ -551,13 +601,13 @@ struct Index {
     return `${this.pad(this.reminderHour)}:${this.pad(this.reminderMinute)}`
   }
 
-  private reminderDate(): Date {
-    return new Date(2024, 0, 1, this.reminderHour, this.reminderMinute, 0)
-  }
-
   private setReminderTime(hour: number, minute: number): void {
-    this.reminderHour = Math.max(0, Math.min(23, hour))
-    this.reminderMinute = Math.max(0, Math.min(59, minute))
+    const h = Math.max(0, Math.min(23, hour ?? 0))
+    const m = Math.max(0, Math.min(59, minute ?? 0))
+    this.reminderHour = h
+    this.reminderMinute = m
+    // Mutate in place (same Date ref) so TimePicker does not reset mid-scroll.
+    this.reminderPickerDate.setHours(h, m, 0, 0)
     AppStorage.setOrCreate('dayroll.reminderHour.v1', this.reminderHour)
     AppStorage.setOrCreate('dayroll.reminderMinute.v1', this.reminderMinute)
     if (this.reminderEnabled) {
@@ -951,11 +1001,41 @@ struct Index {
           .fontColor(SunColor.ink)
 
         Row() {
-          this.statPill($r('app.string.dayroll_stat_total'), this.entries.length.toString())
+          Column({ space: 2 }) {
+            Text(`${this.tapeCount()}`)
+              .fontSize(20)
+              .fontWeight(FontWeight.Bold)
+              .fontColor(SunColor.ink)
+            Text($r('app.string.dayroll_stat_total'))
+              .fontSize(9)
+              .fontWeight(FontWeight.Bold)
+              .letterSpacing(1)
+              .fontColor(SunColor.pebble)
+          }
           Blank().layoutWeight(1)
-          this.statPill($r('app.string.dayroll_stat_streak'), this.streak().toString())
+          Column({ space: 2 }) {
+            Text(`${this.tapeStreak()}`)
+              .fontSize(20)
+              .fontWeight(FontWeight.Bold)
+              .fontColor(SunColor.ink)
+            Text($r('app.string.dayroll_stat_streak'))
+              .fontSize(9)
+              .fontWeight(FontWeight.Bold)
+              .letterSpacing(1)
+              .fontColor(SunColor.pebble)
+          }
           Blank().layoutWeight(1)
-          this.statPill($r('app.string.dayroll_stat_best'), this.longestStreak().toString())
+          Column({ space: 2 }) {
+            Text(`${this.tapeBest()}`)
+              .fontSize(20)
+              .fontWeight(FontWeight.Bold)
+              .fontColor(SunColor.ink)
+            Text($r('app.string.dayroll_stat_best'))
+              .fontSize(9)
+              .fontWeight(FontWeight.Bold)
+              .letterSpacing(1)
+              .fontColor(SunColor.pebble)
+          }
         }
         .width('100%')
 
@@ -1072,21 +1152,6 @@ struct Index {
   }
 
   @Builder
-  private statPill(label: ResourceStr, value: string) {
-    Column({ space: 2 }) {
-      Text(value)
-        .fontSize(20)
-        .fontWeight(FontWeight.Bold)
-        .fontColor(SunColor.ink)
-      Text(label)
-        .fontSize(9)
-        .fontWeight(FontWeight.Bold)
-        .letterSpacing(1)
-        .fontColor(SunColor.pebble)
-    }
-  }
-
-  @Builder
   private reminderPanel() {
       Column({ space: SunSpacing.md }) {
         Text($r('app.string.dayroll_reminder_panel_title'))
@@ -1118,11 +1183,12 @@ struct Index {
           .width('100%')
           .textAlign(TextAlign.Center)
 
-        TimePicker({ selected: this.reminderDate() })
+        TimePicker({ selected: this.reminderPickerDate })
           .width('100%')
           .height(120)
           .selectedTextStyle({ color: SunColor.ink, font: { size: 22, weight: FontWeight.Bold } })
-          .textStyle({ color: SunColor.pebble, font: { size: 18, weight: FontWeight.Medium } })
+          .textStyle({ color: SunColor.mutedInk, font: { size: 18, weight: FontWeight.Medium } })
+          .disappearTextStyle({ color: SunColor.mutedInk, font: { size: 16, weight: FontWeight.Medium } })
           .onChange((value: TimePickerResult) => this.setReminderTime(value.hour, value.minute))
 
         Text(this.reminderEnabled ? $r('app.string.dayroll_reminder_at_format', this.reminderTimeLabel()) : $r('app.string.dayroll_reminder_paused'))

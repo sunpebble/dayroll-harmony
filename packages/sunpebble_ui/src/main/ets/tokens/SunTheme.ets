@@ -16,6 +16,8 @@ export class SunColor {
   static readonly darkSecondary: string = '#BFB8AA'
   static readonly hairline: string = '#D8CFBD'
   static readonly panelTint: string = '#F7F0E5'
+  // Future/muted text on cream (#FFFDF7): ≥4.5:1 for AppGallery 7.1.1.4.1
+  static readonly mutedInk: string = '#7A6E5C'
 }
 
 export class SunSpacing {

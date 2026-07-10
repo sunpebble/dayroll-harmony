@@ -142,7 +142,11 @@
     },
     {
       "name": "dayroll_toast_enable_notifications",
-      "value": "Enable notifications to use daily reminders."
+      "value": "Turn on notifications in Settings to use daily reminders."
+    },
+    {
+      "name": "dayroll_permission_reminder_reason",
+      "value": "Used to send a daily reminder to log one line."
     },
     {
       "name": "dayroll_toast_reminder_set",

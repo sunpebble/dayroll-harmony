@@ -191,7 +191,7 @@ export struct CalendarView {
       } else {
         Text(key.slice(8))
           .fontSize(12)
-          .fontColor(this.isFuture(key) ? '#D8CCBA' : SunColor.pebble)
+          .fontColor(this.isFuture(key) ? SunColor.mutedInk : SunColor.pebble)
       }
     }
     .width('100%').aspectRatio(1)

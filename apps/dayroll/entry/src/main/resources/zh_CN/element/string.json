@@ -122,7 +122,11 @@
     },
     {
       "name": "dayroll_toast_enable_notifications",
-      "value": "开启通知以使用每日提醒。"
+      "value": "请在系统设置中开启通知，以使用每日提醒。"
+    },
+    {
+      "name": "dayroll_permission_reminder_reason",
+      "value": "用于每天提醒你记录一句话。"
     },
     {
       "name": "dayroll_toast_reminder_set",
